@@ -2,13 +2,17 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
+#include "shell/browser/native_window_views.h"
+
+#include <iostream>
+
 #include <dwmapi.h>
 #include <shellapi.h>
 
 #include "content/public/browser/browser_accessibility_state.h"
 #include "shell/browser/browser.h"
-#include "shell/browser/native_window_views.h"
 #include "shell/browser/ui/views/root_view.h"
+#include "shell/browser/win/dark_mode.h"
 #include "shell/common/electron_constants.h"
 #include "ui/base/win/accessibility_misc_utils.h"
 #include "ui/display/display.h"
@@ -447,50 +451,24 @@ LRESULT CALLBACK NativeWindowViews::MouseHookProc(int n_code,
 
 namespace {
 
-bool g_darkModeSupported = false;
-
-bool ShouldAppsUseDarkMode() {
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " FIXME: implement; stub returning false" << std::endl;
-  return false;
-}
-
-bool IsHighContrast() {
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " FIXME: implement; stub returning false" << std::endl;
-  return false;
-}
-
-bool _IsDarkModeAllowedForWindow(HWND hWnd) {
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " FIXME: implement; stub returning false" << std::endl;
-  return false;
-}
-
 bool IsDarkPreferred(ui::NativeTheme::ThemeSource theme_source) {
   switch (theme_source) {
     case ui::NativeTheme::ThemeSource::kForcedLight:
       return false;
     case ui::NativeTheme::ThemeSource::kForcedDark:
-      return g_darkModeSupported = false;
+      return electron::win::IsDarkModeSupported();
     case ui::NativeTheme::ThemeSource::kSystem:
-      return g_darkModeSupported && _ShouldAppsUseDarkMode() &&
-             !IsHighContrast();
+      return electron::win::IsDarkModeEnabled();
   }
 }
 
 }  // namespace
 
 void NativeWindowViews::OnNativeThemeUpdated(ui::NativeTheme* observed_theme) {
-  auto const system_dark = IsDarkPreferred(observed_theme->theme_source());
-  auto const use_dark = system_dark && _IsDarkModeAllowedForWindow(
-                                           window->GetAcceleratedWidget());
-
+  auto const use_dark = IsDarkPreferred(observed_theme->theme_source());
   std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " FIXME: update window for theme. "
-            << " theme_source[" << observed_theme->theme_source() << ']'
-            << " system_dark[" << system_dark << ']' << " use_dark[" << use_dark
-            << ']' << std::endl;
+            << " use_dark[" << use_dark << ']' << std::endl;
+  win::AllowDarkModeForWindow(GetAcceleratedWidget(), use_dark);
 }
 
 }  // namespace electron

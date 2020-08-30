@@ -14,8 +14,12 @@
 // include WinSDKVer.h and set the _WIN32_WINNT macro to the platform you wish
 // to support before including SDKDDKVer.h.
 #include <SDKDDKVer.h>
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <CommCtrl.h>
 #include <Uxtheme.h>
 #include <Vssym32.h>
@@ -24,6 +28,106 @@
 
 #pragma comment(lib, "Comctl32.lib")
 #pragma comment(lib, "Uxtheme.lib")
+
+// This namespace contains code from
+// https://github.com/stevemk14ebr/PolyHook_2_0/blob/master/sources/IatHook.cpp
+// which is licensed under the MIT License.
+// See PolyHook_2_0-LICENSE for more information.
+namespace {
+
+template <typename T, typename T1, typename T2>
+constexpr T RVA2VA(T1 base, T2 rva) {
+  return reinterpret_cast<T>(reinterpret_cast<ULONG_PTR>(base) + rva);
+}
+
+template <typename T>
+constexpr T DataDirectoryFromModuleBase(void* moduleBase, size_t entryID) {
+  auto* dosHdr = reinterpret_cast<PIMAGE_DOS_HEADER>(moduleBase);
+  auto* ntHdr = RVA2VA<PIMAGE_NT_HEADERS>(moduleBase, dosHdr->e_lfanew);
+  auto* dataDir = ntHdr->OptionalHeader.DataDirectory;
+  return RVA2VA<T>(moduleBase, dataDir[entryID].VirtualAddress);
+}
+
+#if 0
+PIMAGE_THUNK_DATA FindAddressByName(void *moduleBase, PIMAGE_THUNK_DATA impName, PIMAGE_THUNK_DATA impAddr, const char *funcName)
+{
+	for (; impName->u1.Ordinal; ++impName, ++impAddr)
+	{
+		if (IMAGE_SNAP_BY_ORDINAL(impName->u1.Ordinal))
+			continue;
+
+		auto* import = RVA2VA<PIMAGE_IMPORT_BY_NAME>(moduleBase, impName->u1.AddressOfData);
+		if (strcmp(import->Name, funcName) != 0)
+			continue;
+		return impAddr;
+	}
+	return nullptr;
+}
+#endif
+
+PIMAGE_THUNK_DATA FindAddressByOrdinal(void* moduleBase,
+                                       PIMAGE_THUNK_DATA impName,
+                                       PIMAGE_THUNK_DATA impAddr,
+                                       uint16_t ordinal) {
+  for (; impName->u1.Ordinal; ++impName, ++impAddr) {
+    if (IMAGE_SNAP_BY_ORDINAL(impName->u1.Ordinal) &&
+        IMAGE_ORDINAL(impName->u1.Ordinal) == ordinal)
+      return impAddr;
+  }
+  return nullptr;
+}
+
+#if 0
+PIMAGE_THUNK_DATA FindIatThunkInModule(void *moduleBase, const char *dllName, const char *funcName)
+{
+	auto* imports = DataDirectoryFromModuleBase<PIMAGE_IMPORT_DESCRIPTOR>(moduleBase, IMAGE_DIRECTORY_ENTRY_IMPORT);
+	for (; imports->Name; ++imports)
+	{
+		if (_stricmp(RVA2VA<LPCSTR>(moduleBase, imports->Name), dllName) != 0)
+			continue;
+
+		auto* origThunk = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->OriginalFirstThunk);
+		auto* thunk = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->FirstThunk);
+		return FindAddressByName(moduleBase, origThunk, thunk, funcName);
+	}
+	return nullptr;
+}
+
+PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void *moduleBase, const char *dllName, const char *funcName)
+{
+	auto* imports = DataDirectoryFromModuleBase<PIMAGE_DELAYLOAD_DESCRIPTOR>(moduleBase, IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT);
+	for (; imports->DllNameRVA; ++imports)
+	{
+		if (_stricmp(RVA2VA<LPCSTR>(moduleBase, imports->DllNameRVA), dllName) != 0)
+			continue;
+
+		auto* impName = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->ImportNameTableRVA);
+		auto* impAddr = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->ImportAddressTableRVA);
+		return FindAddressByName(moduleBase, impName, impAddr, funcName);
+	}
+	return nullptr;
+}
+#endif
+
+PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void* moduleBase,
+                                             const char* dllName,
+                                             uint16_t ordinal) {
+  auto* imports = DataDirectoryFromModuleBase<PIMAGE_DELAYLOAD_DESCRIPTOR>(
+      moduleBase, IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT);
+  for (; imports->DllNameRVA; ++imports) {
+    if (_stricmp(RVA2VA<LPCSTR>(moduleBase, imports->DllNameRVA), dllName) != 0)
+      continue;
+
+    auto* impName =
+        RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->ImportNameTableRVA);
+    auto* impAddr =
+        RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->ImportAddressTableRVA);
+    return FindAddressByOrdinal(moduleBase, impName, impAddr, ordinal);
+  }
+  return nullptr;
+}
+
+}  // namespace
 
 // Code in this namespace (c) 2019 Richard Yu.
 // Use of this source code is governed by the MIT license.
@@ -100,14 +204,14 @@ fnSetWindowCompositionAttribute _SetWindowCompositionAttribute = nullptr;
 fnShouldAppsUseDarkMode _ShouldAppsUseDarkMode = nullptr;
 fnAllowDarkModeForWindow _AllowDarkModeForWindow = nullptr;
 fnAllowDarkModeForApp _AllowDarkModeForApp = nullptr;
-fnFlushMenuThemes _FlushMenuThemes = nullptr;
+// fnFlushMenuThemes _FlushMenuThemes = nullptr;
 fnRefreshImmersiveColorPolicyState _RefreshImmersiveColorPolicyState = nullptr;
 fnIsDarkModeAllowedForWindow _IsDarkModeAllowedForWindow = nullptr;
 fnGetIsImmersiveColorUsingHighContrast _GetIsImmersiveColorUsingHighContrast =
     nullptr;
 fnOpenNcThemeData _OpenNcThemeData = nullptr;
 // 1903 18362
-fnShouldSystemUseDarkMode _ShouldSystemUseDarkMode = nullptr;
+// fnShouldSystemUseDarkMode _ShouldSystemUseDarkMode = nullptr;
 fnSetPreferredAppMode _SetPreferredAppMode = nullptr;
 
 bool g_darkModeSupported = false;
@@ -156,11 +260,13 @@ bool IsColorSchemeChangeMessage(LPARAM lParam) {
   return is;
 }
 
+#if 0
 bool IsColorSchemeChangeMessage(UINT message, LPARAM lParam) {
   if (message == WM_SETTINGCHANGE)
     return IsColorSchemeChangeMessage(lParam);
   return false;
 }
+#endif
 
 void AllowDarkModeForApp(bool allow) {
   if (_AllowDarkModeForApp)
@@ -173,8 +279,8 @@ void FixDarkScrollBar() {
   HMODULE hComctl =
       LoadLibraryExW(L"comctl32.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
   if (hComctl) {
-    auto addr = FindDelayLoadThunkInModule(hComctl, "uxtheme.dll",
-                                           49);  // OpenNcThemeData
+    auto* addr = FindDelayLoadThunkInModule(hComctl, "uxtheme.dll",
+                                            49);  // OpenNcThemeData
     if (addr) {
       DWORD oldProtect;
       if (VirtualProtect(addr, sizeof(IMAGE_THUNK_DATA), PAGE_READWRITE,
@@ -235,8 +341,8 @@ void InitDarkMode() {
               reinterpret_cast<fnSetPreferredAppMode>(ord135);
 
         //_FlushMenuThemes =
-        //reinterpret_cast<fnFlushMenuThemes>(GetProcAddress(hUxtheme,
-        //MAKEINTRESOURCEA(136)));
+        // reinterpret_cast<fnFlushMenuThemes>(GetProcAddress(hUxtheme,
+        // MAKEINTRESOURCEA(136)));
         _IsDarkModeAllowedForWindow =
             reinterpret_cast<fnIsDarkModeAllowedForWindow>(
                 GetProcAddress(hUxtheme, MAKEINTRESOURCEA(137)));
@@ -283,7 +389,7 @@ void AllowDarkModeForApp(bool allow) {
   ::AllowDarkModeForApp(allow);
 }
 
-bool AllowDarkModeForWindow(HWND hWnd, bool allow) {
+void AllowDarkModeForWindow(HWND hWnd, bool allow) {
   EnsureInitialized();
 
   ::AllowDarkModeForWindow(hWnd, allow);
