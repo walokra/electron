@@ -2,6 +2,8 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
+#include <iostream>
+
 #include "shell/browser/ui/win/electron_desktop_window_tree_host_win.h"
 
 #include "ui/base/win/hwnd_metrics.h"
@@ -21,7 +23,13 @@ bool ElectronDesktopWindowTreeHostWin::PreHandleMSG(UINT message,
                                                     WPARAM w_param,
                                                     LPARAM l_param,
                                                     LRESULT* result) {
-  return native_window_view_->PreHandleMSG(message, w_param, l_param, result);
+  if (message == WM_NCCREATE) {
+    return native_window_view_->PreHandleMSG(
+        message, w_param, reinterpret_cast<LPARAM>(GetAcceleratedWidget()),
+        result);
+  } else {
+    return native_window_view_->PreHandleMSG(message, w_param, l_param, result);
+  }
 }
 
 bool ElectronDesktopWindowTreeHostWin::ShouldPaintAsActive() const {

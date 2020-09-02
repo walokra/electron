@@ -203,6 +203,13 @@ bool NativeWindowViews::PreHandleMSG(UINT message,
     // mode if it isn't already, always say we didn't handle the message
     // because we still want Chromium to handle returning the actual
     // accessibility object.
+    case WM_NCCREATE: {
+      HWND hwnd = reinterpret_cast<HWND>(l_param);
+      auto const theme_source =
+          ui::NativeTheme::GetInstanceForNativeUi()->theme_source();
+      win::SetDarkModeForWindow(hwnd, theme_source);
+      return false;
+    }
     case WM_GETOBJECT: {
       if (checked_for_a11y_support_)
         return false;
@@ -308,6 +315,11 @@ bool NativeWindowViews::PreHandleMSG(UINT message,
           legacy_window_ = reinterpret_cast<HWND>(l_param);
         }
       }
+      return false;
+    }
+    case WM_SETTINGCHANGE: {
+      std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
+                << " WM_SETTINGCHANGE" << std::endl;
       return false;
     }
     default:
@@ -449,6 +461,7 @@ LRESULT CALLBACK NativeWindowViews::MouseHookProc(int n_code,
   return CallNextHookEx(NULL, n_code, w_param, l_param);
 }
 
+#if 0
 namespace {
 
 bool IsDarkPreferred(ui::NativeTheme::ThemeSource theme_source) {
@@ -463,12 +476,12 @@ bool IsDarkPreferred(ui::NativeTheme::ThemeSource theme_source) {
 }
 
 }  // namespace
+#endif
 
 void NativeWindowViews::OnNativeThemeUpdated(ui::NativeTheme* observed_theme) {
-  auto const use_dark = IsDarkPreferred(observed_theme->theme_source());
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " use_dark[" << use_dark << ']' << std::endl;
-  win::AllowDarkModeForWindow(GetAcceleratedWidget(), use_dark);
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << std::endl;
+  win::SetDarkModeForWindow(GetAcceleratedWidget(),
+                            observed_theme->theme_source());
 }
 
 }  // namespace electron

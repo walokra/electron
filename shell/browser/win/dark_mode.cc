@@ -6,6 +6,7 @@
 
 // #include <climits>
 // #include <cstdint>
+#include <iostream>
 #include <mutex>
 #include <thread>
 
@@ -25,6 +26,7 @@
 #include <Vssym32.h>
 #include <Windows.h>
 #include <WindowsX.h>
+#include <dwmapi.h>
 
 #pragma comment(lib, "Comctl32.lib")
 #pragma comment(lib, "Uxtheme.lib")
@@ -166,7 +168,7 @@ enum WINDOWCOMPOSITIONATTRIB {
   WCA_HOLOGRAPHIC = 23,
   WCA_EXCLUDED_FROM_DDA = 24,
   WCA_PASSIVEUPDATEMODE = 25,
-  WCA_USEDARKMODECOLORS = 26,
+  WCA_USEDARKMODECOLORS = 26,  // build 18875+
   WCA_LAST = 27
 };
 
@@ -214,6 +216,12 @@ fnOpenNcThemeData _OpenNcThemeData = nullptr;
 // fnShouldSystemUseDarkMode _ShouldSystemUseDarkMode = nullptr;
 fnSetPreferredAppMode _SetPreferredAppMode = nullptr;
 
+using fnDwmSetWindowAttribute = HRESULT(WINAPI*)(HWND, DWORD, LPCVOID, DWORD);
+fnDwmSetWindowAttribute _DwmSetWindowAttribute = {};
+
+using fnDwmGetWindowAttribute = HRESULT(WINAPI*)(HWND, DWORD, PVOID, DWORD);
+fnDwmGetWindowAttribute _DwmGetWindowAttribute = {};
+
 bool g_darkModeSupported = false;
 bool g_darkModeEnabled = false;
 DWORD g_buildNumber = 0;
@@ -232,20 +240,63 @@ bool IsHighContrast() {
   return false;
 }
 
+void RefreshTitleBarThemeColor(HWND hWnd, bool dark) {
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << " hWnd["
+            << hWnd << "] dark[" << dark << ']' << std::endl;
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
+            << " IsDarkModeAllowedForWindow["
+            << _IsDarkModeAllowedForWindow(hWnd) << ']' << std::endl;
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
+            << " IsHighContrast[" << IsHighContrast() << ']' << std::endl;
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
+            << " _ShouldAppsUseDarkMode[" << _ShouldAppsUseDarkMode() << ']'
+            << std::endl;
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
+            << " buildNumber " << g_buildNumber << std::endl;
+
+#if 1
+  if (g_buildNumber < 18362) {
+    std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
+              << std::endl;
+    SetPropW(hWnd, L"UseImmersiveDarkModeColors",
+             reinterpret_cast<HANDLE>(static_cast<INT_PTR>(dark)));
+  } else if (_SetWindowCompositionAttribute) {
+    std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << ' '
+              << dark << std::endl;
+    auto data =
+        WINDOWCOMPOSITIONATTRIBDATA{WCA_USEDARKMODECOLORS, &dark, sizeof dark};
+    // WINDOWCOMPOSITIONATTRIBDATA data = {WCA_USEDARKMODECOLORS, &ldark, sizeof
+    // ldark}; sizeof(dark)};
+    _SetWindowCompositionAttribute(hWnd, &data);
+  } else {
+    std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
+              << std::endl;
+  }
+#else
+  LONG ldark = dark;
+  if (g_buildNumber >= 20161) {
+    std::cerr << "a" << std::endl;
+    _DwmSetWindowAttribute(hWnd, 20, &ldark,
+                           sizeof dark);  // DWMA_USE_IMMERSIVE_DARK_MODE = 20
+  } else if (g_buildNumber >= 18363) {
+    std::cerr << "b ldark " << ldark << std::endl;
+    auto data = WINDOWCOMPOSITIONATTRIBDATA{WCA_USEDARKMODECOLORS, &ldark,
+                                            sizeof ldark};
+    _SetWindowCompositionAttribute(hWnd, &data);
+  } else {
+    std::cerr << "c" << std::endl;
+    _DwmSetWindowAttribute(hWnd, 0x13, &ldark, sizeof ldark);
+  }
+#endif
+}
+
 void RefreshTitleBarThemeColor(HWND hWnd) {
   BOOL dark = FALSE;
   if (_IsDarkModeAllowedForWindow(hWnd) && _ShouldAppsUseDarkMode() &&
       !IsHighContrast()) {
     dark = TRUE;
   }
-  if (g_buildNumber < 18362)
-    SetPropW(hWnd, L"UseImmersiveDarkModeColors",
-             reinterpret_cast<HANDLE>(static_cast<INT_PTR>(dark)));
-  else if (_SetWindowCompositionAttribute) {
-    WINDOWCOMPOSITIONATTRIBDATA data = {WCA_USEDARKMODECOLORS, &dark,
-                                        sizeof(dark)};
-    _SetWindowCompositionAttribute(hWnd, &data);
-  }
+  RefreshTitleBarThemeColor(hWnd, dark);
 }
 
 bool IsColorSchemeChangeMessage(LPARAM lParam) {
@@ -301,7 +352,19 @@ void FixDarkScrollBar() {
   }
 }
 
-constexpr bool CheckBuildNumber(DWORD buildNumber) {
+template <typename P>
+bool Symbol(HMODULE h, P& pointer, const char* name) {
+  if (P p = reinterpret_cast<P>(GetProcAddress(h, name))) {
+    pointer = p;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool CheckBuildNumber(DWORD buildNumber) {
+  // constexpr bool CheckBuildNumber(DWORD buildNumber) {
+  std::cerr << "build number " << buildNumber << std::endl;
   return (buildNumber == 17763 ||  // 1809
           buildNumber == 18362 ||  // 1903
           buildNumber == 18363 ||  // 1909
@@ -309,6 +372,14 @@ constexpr bool CheckBuildNumber(DWORD buildNumber) {
 }
 
 void InitDarkMode() {
+  HMODULE hDwmApi = LoadLibrary(L"DWMAPI");
+  if (hDwmApi != 0) {
+    Symbol(hDwmApi, _DwmGetWindowAttribute, "DwmGetWindowAttribute");
+    Symbol(hDwmApi, _DwmSetWindowAttribute, "DwmSetWindowAttribute");
+  }
+  std::cerr << "_DwmGetWindowAttribute "
+            << reinterpret_cast<void*>(_DwmGetWindowAttribute) << std::endl;
+
   auto RtlGetNtVersionNumbers = reinterpret_cast<fnRtlGetNtVersionNumbers>(
       GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetNtVersionNumbers"));
   if (RtlGetNtVersionNumbers) {
@@ -381,6 +452,17 @@ void EnsureInitialized() {
   std::call_once(dark_mode_inited_, []() { ::InitDarkMode(); });
 }
 
+bool IsDarkPreferred(ui::NativeTheme::ThemeSource theme_source) {
+  switch (theme_source) {
+    case ui::NativeTheme::ThemeSource::kForcedLight:
+      return false;
+    case ui::NativeTheme::ThemeSource::kForcedDark:
+      return win::IsDarkModeSupported();
+    case ui::NativeTheme::ThemeSource::kSystem:
+      return win::IsDarkModeEnabled();
+  }
+}
+
 namespace win {
 
 void AllowDarkModeForApp(bool allow) {
@@ -389,10 +471,14 @@ void AllowDarkModeForApp(bool allow) {
   ::AllowDarkModeForApp(allow);
 }
 
-void AllowDarkModeForWindow(HWND hWnd, bool allow) {
+bool AllowDarkModeForWindow(HWND hWnd, bool allow) {
   EnsureInitialized();
 
-  ::AllowDarkModeForWindow(hWnd, allow);
+  bool const ret = ::AllowDarkModeForWindow(hWnd, allow);
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << " hWnd["
+            << hWnd << "] allow[" << allow << "] ret[" << ret << ']'
+            << std::endl;
+  return ret;
 }
 
 bool IsDarkModeEnabled() {
@@ -426,9 +512,151 @@ void HandleWindowThemeChanged(HWND hWnd) {
   EnsureInitialized();
 
   if (IsDarkModeSupported()) {
-    _AllowDarkModeForWindow(hWnd, IsDarkModeEnabled());
+    AllowDarkModeForWindow(hWnd, IsDarkModeEnabled());
     ::RefreshTitleBarThemeColor(hWnd);
   }
+}
+
+void SetDarkModeForApp(ui::NativeTheme::ThemeSource theme_source) {
+  auto const use_dark = IsDarkPreferred(theme_source);
+
+  ::AllowDarkModeForApp(use_dark);
+}
+
+void SetDarkModeForWindow(HWND hWnd,
+                          ui::NativeTheme::ThemeSource theme_source) {
+  EnsureInitialized();
+
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
+            << " theme_source[" << theme_source << ']' << std::endl;
+  auto const use_dark = IsDarkPreferred(theme_source);
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
+            << " use_dark[" << use_dark << ']' << std::endl;
+
+  // for (;;) {
+  HWND up = GetParent(hWnd);
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << " hWnd["
+            << hWnd << "] up [" << up << ']' << std::endl;
+
+  // set the titlebar to confirm we have the right window
+  char str[64];
+  snprintf(str, sizeof(str), "%zu", size_t(hWnd));
+  ::SetWindowTextA(hWnd, str);
+
+  // set permissions
+  if (_AllowDarkModeForApp != nullptr) {
+    std::cerr << "AllowDarkModeForApp " << use_dark << std::endl;
+    _AllowDarkModeForApp(use_dark);
+  }
+  if (_AllowDarkModeForWindow != nullptr) {
+    std::cerr << "AllowDarkModeForWindow " << use_dark << std::endl;
+    _AllowDarkModeForWindow(hWnd, use_dark);
+  }
+
+  // set the titlebar to dark
+  // BOOL darkFlag = TRUE;
+  // auto data = WINDOWCOMPOSITIONATTRIBDATA {WCA_USEDARKMODECOLORS, &darkFlag,
+  // sizeof(darkFlag) }; _SetWindowCompositionAttribute(hWnd, &data);
+
+  // tell it to repaint
+  // STYLESTRUCT style_struct = {};
+  // SendMessageW(hWnd, WM_STYLECHANGED, 0,
+  // reinterpret_cast<LPARAM>(&style_struct)); SendNotifyMessageA(hWnd,
+  // WM_STYLECHANGED, 0, 0); PostMessageW(hWnd, WM_STYLECHANGED, 0, 0);
+  // PostMessageW(hWnd, WM_THEMECHANGED, 0, 0);
+  // PostMessageW(hWnd, WM_STYLECHANGED, GWL_STYLE, 0);
+  // SendMessageW(hWnd, WM_THEMECHANGED, 0, 0);
+  // SetWindowPos (hWnd, NULL, 0,0,0,0, SWP_FRAMECHANGED | SWP_DRAWFRAME |
+  // SWP_NOREPOSITION | SWP_NOSIZE | SWP_NOMOVE); SendMessageW(hWnd,
+  // WM_STYLECHANGED, 0, 0); SetWindowPos (hWnd, NULL, 0,0,0,0, SWP_FRAMECHANGED
+  // | SWP_DRAWFRAME | SWP_NOREPOSITION | SWP_NOSIZE | SWP_NOMOVE);
+  // RedrawWindow(hWnd, {}, {}, RDW_INVALIDATE|RDW_FRAME|RDW_NOINTERNALPAINT);
+  // UpdateWindow(hWnd);
+  // SendMessageW(hWnd, WM_THEMECHANGED, 0, 0);
+
+  if (g_buildNumber >= 18875) {
+    BOOL darkFlag = use_dark != 0;
+    auto attr = WINDOWCOMPOSITIONATTRIBDATA{WCA_USEDARKMODECOLORS, &darkFlag,
+                                            sizeof(darkFlag)};
+    _SetWindowCompositionAttribute(hWnd, &attr);
+    //_RefreshImmersiveColorPolicyState();
+    // SetWindowPos (hWnd, NULL, 0,0,0,0, SWP_SHOWWINDOW | SWP_FRAMECHANGED |
+    // SWP_DRAWFRAME | SWP_NOREPOSITION | SWP_NOSIZE | SWP_NOMOVE);
+    //::RedrawWindow(hWnd, nullptr, nullptr, RDW_FRAME | RDW_INVALIDATE |
+    //RDW_ERASE | RDW_INTERNALPAINT | RDW_ALLCHILDREN | RDW_UPDATENOW);
+    // PostMessage(hWnd, WM_DWMNCRENDERINGCHANGED, TRUE, 0);
+    // PostMessage(hWnd, WM_DWMNCRENDERINGCHANGED, FALSE, 0);
+    // PostMessage(hWnd, WM_DWMNCRENDERINGCHANGED, TRUE, 0);
+    SetWindowPos(hWnd, NULL, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+                     SWP_DRAWFRAME | SWP_FRAMECHANGED);
+  }
+#if 0
+	  else {
+          static constexpr int DWMA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
+          static constexpr int DWMA_USE_IMMERSIVE_DARK_MODE = 20;
+	  int attribute = -1;
+          if (g_buildNumber >= 17763) {
+	    attribute = DWMA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1;
+	  }
+	  if (g_buildNumber >= 18985) {
+            attribute = DWMA_USE_IMMERSIVE_DARK_MODE;
+	  }
+	  if (attribute >= 0) {
+	    BOOL dark = use_dark != 0;
+            _DwmSetWindowAttribute(hWnd, attribute, &dark, sizeof(dark));
+	  }
+#endif
+
+  // SetWindowPos(hWnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
+  // | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+
+#if 0
+	  // walk up the parent tree
+	  if (!up || up == hWnd)
+		  break;
+	  hWnd = up;
+  }
+#endif
+
+#if 0
+  auto* top = ::GetTopWindow(hWnd);
+  std::cerr << "hWnd[" <<  hWnd << "] top[" << top << ']' << std::endl;
+  // hWnd = top;
+
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << " theme_source[" << theme_source << ']' << std::endl;
+  auto const use_dark = IsDarkPreferred(theme_source);
+  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << " use_dark[" << use_dark << ']' << std::endl;
+
+  if (use_dark)
+  {
+    if (_AllowDarkModeForApp != nullptr)
+      _AllowDarkModeForApp(use_dark);
+    if (_AllowDarkModeForWindow != nullptr)
+      _AllowDarkModeForWindow(hWnd, use_dark);
+
+    SetClassLongPtr(hWnd, GCLP_HBRBACKGROUND, reinterpret_cast<LONG_PTR>(GetStockObject(BLACK_BRUSH)));
+    if (FAILED(::SetWindowTheme(hWnd, L"DarkMode_Explorer", nullptr))) {
+      std::cerr << __FILE__ << ':' << __LINE__ << " failed darkmode" << std::endl;
+      ::SetWindowTheme(hWnd, L"Explorer", nullptr);
+    }
+    BOOL darkFlag = TRUE;
+    std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << ' ' << darkFlag << std::endl;
+    auto data = WINDOWCOMPOSITIONATTRIBDATA {WCA_USEDARKMODECOLORS, &darkFlag, sizeof(darkFlag) };
+    _SetWindowCompositionAttribute(hWnd, &data);
+    _RefreshImmersiveColorPolicyState();
+  }
+  else
+  {
+    std::cerr << __FILE__ << ':' << __LINE__ << "  FIXME use_dark false" << std::endl;
+  }
+
+  //AllowDarkModeForWindow(hWnd, use_dark);
+  // RefreshTitleBarThemeColor(hWnd, use_dark);
+  //_RefreshImmersiveColorPolicyState();
+  ::RedrawWindow(hWnd, nullptr, nullptr, RDW_FRAME | RDW_INVALIDATE | RDW_ERASE | RDW_INTERNALPAINT | RDW_ALLCHILDREN | RDW_UPDATENOW);
+  SendMessageW(hWnd, WM_THEMECHANGED, 0, 0);
+#endif
 }
 
 }  // namespace win

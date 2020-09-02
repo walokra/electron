@@ -13,15 +13,20 @@
 #undef WIN32_LEAN_AND_MEAN
 #endif
 
+#include "ui/native_theme/native_theme.h"
+
 namespace electron {
 
 namespace win {
+
+void SetDarkModeForApp(ui::NativeTheme::ThemeSource theme_source);
+void SetDarkModeForWindow(HWND hWnd, ui::NativeTheme::ThemeSource theme_source);
 
 bool IsDarkModeEnabled();
 bool IsDarkModeSupported();
 void HandleSettingChange(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 void HandleWindowThemeChanged(HWND hWnd);
-void AllowDarkModeForWindow(HWND hWnd, bool allow);
+bool AllowDarkModeForWindow(HWND hWnd, bool allow);
 void AllowDarkModeForApp(bool allow);
 
 }  // namespace win
