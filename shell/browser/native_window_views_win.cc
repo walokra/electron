@@ -203,13 +203,6 @@ bool NativeWindowViews::PreHandleMSG(UINT message,
     // mode if it isn't already, always say we didn't handle the message
     // because we still want Chromium to handle returning the actual
     // accessibility object.
-    case WM_NCCREATE: {
-      HWND hwnd = reinterpret_cast<HWND>(l_param);
-      auto const theme_source =
-          ui::NativeTheme::GetInstanceForNativeUi()->theme_source();
-      win::SetDarkModeForWindow(hwnd, theme_source);
-      return false;
-    }
     case WM_GETOBJECT: {
       if (checked_for_a11y_support_)
         return false;

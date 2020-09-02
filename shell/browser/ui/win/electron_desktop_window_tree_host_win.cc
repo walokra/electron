@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "shell/browser/ui/win/electron_desktop_window_tree_host_win.h"
+#include "shell/browser/win/dark_mode.h"
 
 #include "ui/base/win/hwnd_metrics.h"
 
@@ -24,12 +25,13 @@ bool ElectronDesktopWindowTreeHostWin::PreHandleMSG(UINT message,
                                                     LPARAM l_param,
                                                     LRESULT* result) {
   if (message == WM_NCCREATE) {
-    return native_window_view_->PreHandleMSG(
-        message, w_param, reinterpret_cast<LPARAM>(GetAcceleratedWidget()),
-        result);
-  } else {
-    return native_window_view_->PreHandleMSG(message, w_param, l_param, result);
+    HWND const hwnd = GetAcceleratedWidget();
+    auto const theme_source =
+        ui::NativeTheme::GetInstanceForNativeUi()->theme_source();
+    win::SetDarkModeForWindow(hwnd, theme_source);
   }
+
+  return native_window_view_->PreHandleMSG(message, w_param, l_param, result);
 }
 
 bool ElectronDesktopWindowTreeHostWin::ShouldPaintAsActive() const {
