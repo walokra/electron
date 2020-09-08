@@ -4,8 +4,6 @@
 
 #include "shell/browser/native_window_views.h"
 
-#include <iostream>
-
 #include <dwmapi.h>
 #include <shellapi.h>
 
@@ -310,11 +308,6 @@ bool NativeWindowViews::PreHandleMSG(UINT message,
       }
       return false;
     }
-    case WM_SETTINGCHANGE: {
-      std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-                << " WM_SETTINGCHANGE" << std::endl;
-      return false;
-    }
     default:
       return false;
   }
@@ -454,27 +447,8 @@ LRESULT CALLBACK NativeWindowViews::MouseHookProc(int n_code,
   return CallNextHookEx(NULL, n_code, w_param, l_param);
 }
 
-#if 0
-namespace {
-
-bool IsDarkPreferred(ui::NativeTheme::ThemeSource theme_source) {
-  switch (theme_source) {
-    case ui::NativeTheme::ThemeSource::kForcedLight:
-      return false;
-    case ui::NativeTheme::ThemeSource::kForcedDark:
-      return electron::win::IsDarkModeSupported();
-    case ui::NativeTheme::ThemeSource::kSystem:
-      return electron::win::IsDarkModeEnabled();
-  }
-}
-
-}  // namespace
-#endif
-
-void NativeWindowViews::OnNativeThemeUpdated(ui::NativeTheme* observed_theme) {
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << std::endl;
-  win::SetDarkModeForWindow(GetAcceleratedWidget(),
-                            observed_theme->theme_source());
+void NativeWindowViews::OnNativeThemeUpdated(ui::NativeTheme* theme) {
+  win::SetDarkModeForWindow(GetAcceleratedWidget(), theme->theme_source());
 }
 
 }  // namespace electron

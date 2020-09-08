@@ -33,8 +33,7 @@
 
 // This namespace contains code from
 // https://github.com/stevemk14ebr/PolyHook_2_0/blob/master/sources/IatHook.cpp
-// which is licensed under the MIT License.
-// See PolyHook_2_0-LICENSE for more information.
+// governed by the MIT license and (c) Stephen Eckels.
 namespace {
 
 template <typename T, typename T1, typename T2>
@@ -50,23 +49,6 @@ constexpr T DataDirectoryFromModuleBase(void* moduleBase, size_t entryID) {
   return RVA2VA<T>(moduleBase, dataDir[entryID].VirtualAddress);
 }
 
-#if 0
-PIMAGE_THUNK_DATA FindAddressByName(void *moduleBase, PIMAGE_THUNK_DATA impName, PIMAGE_THUNK_DATA impAddr, const char *funcName)
-{
-	for (; impName->u1.Ordinal; ++impName, ++impAddr)
-	{
-		if (IMAGE_SNAP_BY_ORDINAL(impName->u1.Ordinal))
-			continue;
-
-		auto* import = RVA2VA<PIMAGE_IMPORT_BY_NAME>(moduleBase, impName->u1.AddressOfData);
-		if (strcmp(import->Name, funcName) != 0)
-			continue;
-		return impAddr;
-	}
-	return nullptr;
-}
-#endif
-
 PIMAGE_THUNK_DATA FindAddressByOrdinal(void* moduleBase,
                                        PIMAGE_THUNK_DATA impName,
                                        PIMAGE_THUNK_DATA impAddr,
@@ -78,38 +60,6 @@ PIMAGE_THUNK_DATA FindAddressByOrdinal(void* moduleBase,
   }
   return nullptr;
 }
-
-#if 0
-PIMAGE_THUNK_DATA FindIatThunkInModule(void *moduleBase, const char *dllName, const char *funcName)
-{
-	auto* imports = DataDirectoryFromModuleBase<PIMAGE_IMPORT_DESCRIPTOR>(moduleBase, IMAGE_DIRECTORY_ENTRY_IMPORT);
-	for (; imports->Name; ++imports)
-	{
-		if (_stricmp(RVA2VA<LPCSTR>(moduleBase, imports->Name), dllName) != 0)
-			continue;
-
-		auto* origThunk = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->OriginalFirstThunk);
-		auto* thunk = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->FirstThunk);
-		return FindAddressByName(moduleBase, origThunk, thunk, funcName);
-	}
-	return nullptr;
-}
-
-PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void *moduleBase, const char *dllName, const char *funcName)
-{
-	auto* imports = DataDirectoryFromModuleBase<PIMAGE_DELAYLOAD_DESCRIPTOR>(moduleBase, IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT);
-	for (; imports->DllNameRVA; ++imports)
-	{
-		if (_stricmp(RVA2VA<LPCSTR>(moduleBase, imports->DllNameRVA), dllName) != 0)
-			continue;
-
-		auto* impName = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->ImportNameTableRVA);
-		auto* impAddr = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->ImportAddressTableRVA);
-		return FindAddressByName(moduleBase, impName, impAddr, funcName);
-	}
-	return nullptr;
-}
-#endif
 
 PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void* moduleBase,
                                              const char* dllName,
@@ -131,9 +81,9 @@ PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void* moduleBase,
 
 }  // namespace
 
-// Code in this namespace (c) 2019 Richard Yu.
-// Use of this source code is governed by the MIT license.
-// Source: https://github.com/ysc3839/win32-darkmode/
+// This namespace contains code from
+// https://github.com/ysc3839/win32-darkmode/
+// governed by the MIT license and (c) Richard Yu
 namespace {
 
 enum IMMERSIVE_HC_CACHE_MODE { IHCM_USE_CACHED_VALUE, IHCM_REFRESH };
@@ -241,53 +191,17 @@ bool IsHighContrast() {
 }
 
 void RefreshTitleBarThemeColor(HWND hWnd, bool dark) {
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << " hWnd["
-            << hWnd << "] dark[" << dark << ']' << std::endl;
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " IsDarkModeAllowedForWindow["
-            << _IsDarkModeAllowedForWindow(hWnd) << ']' << std::endl;
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " IsHighContrast[" << IsHighContrast() << ']' << std::endl;
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " _ShouldAppsUseDarkMode[" << _ShouldAppsUseDarkMode() << ']'
-            << std::endl;
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " buildNumber " << g_buildNumber << std::endl;
-
-#if 1
-  if (g_buildNumber < 18362) {
-    std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-              << std::endl;
-    SetPropW(hWnd, L"UseImmersiveDarkModeColors",
-             reinterpret_cast<HANDLE>(static_cast<INT_PTR>(dark)));
-  } else if (_SetWindowCompositionAttribute) {
-    std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << ' '
-              << dark << std::endl;
-    auto data =
-        WINDOWCOMPOSITIONATTRIBDATA{WCA_USEDARKMODECOLORS, &dark, sizeof dark};
-    // WINDOWCOMPOSITIONATTRIBDATA data = {WCA_USEDARKMODECOLORS, &ldark, sizeof
-    // ldark}; sizeof(dark)};
-    _SetWindowCompositionAttribute(hWnd, &data);
-  } else {
-    std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-              << std::endl;
-  }
-#else
   LONG ldark = dark;
   if (g_buildNumber >= 20161) {
-    std::cerr << "a" << std::endl;
     _DwmSetWindowAttribute(hWnd, 20, &ldark,
                            sizeof dark);  // DWMA_USE_IMMERSIVE_DARK_MODE = 20
   } else if (g_buildNumber >= 18363) {
-    std::cerr << "b ldark " << ldark << std::endl;
     auto data = WINDOWCOMPOSITIONATTRIBDATA{WCA_USEDARKMODECOLORS, &ldark,
                                             sizeof ldark};
     _SetWindowCompositionAttribute(hWnd, &data);
   } else {
-    std::cerr << "c" << std::endl;
     _DwmSetWindowAttribute(hWnd, 0x13, &ldark, sizeof ldark);
   }
-#endif
 }
 
 void RefreshTitleBarThemeColor(HWND hWnd) {
@@ -310,14 +224,6 @@ bool IsColorSchemeChangeMessage(LPARAM lParam) {
   _GetIsImmersiveColorUsingHighContrast(IHCM_REFRESH);
   return is;
 }
-
-#if 0
-bool IsColorSchemeChangeMessage(UINT message, LPARAM lParam) {
-  if (message == WM_SETTINGCHANGE)
-    return IsColorSchemeChangeMessage(lParam);
-  return false;
-}
-#endif
 
 void AllowDarkModeForApp(bool allow) {
   if (_AllowDarkModeForApp)
@@ -363,8 +269,6 @@ bool Symbol(HMODULE h, P& pointer, const char* name) {
 }
 
 bool CheckBuildNumber(DWORD buildNumber) {
-  // constexpr bool CheckBuildNumber(DWORD buildNumber) {
-  std::cerr << "build number " << buildNumber << std::endl;
   return (buildNumber == 17763 ||  // 1809
           buildNumber == 18362 ||  // 1903
           buildNumber == 18363 ||  // 1909
@@ -474,11 +378,7 @@ void AllowDarkModeForApp(bool allow) {
 bool AllowDarkModeForWindow(HWND hWnd, bool allow) {
   EnsureInitialized();
 
-  bool const ret = ::AllowDarkModeForWindow(hWnd, allow);
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << " hWnd["
-            << hWnd << "] allow[" << allow << "] ret[" << ret << ']'
-            << std::endl;
-  return ret;
+  return ::AllowDarkModeForWindow(hWnd, allow);
 }
 
 bool IsDarkModeEnabled() {
@@ -503,7 +403,6 @@ void HandleSettingChange(HWND hWnd,
     if (::IsColorSchemeChangeMessage(lParam)) {
       g_darkModeEnabled = ::_ShouldAppsUseDarkMode() && !::IsHighContrast();
       ::RefreshTitleBarThemeColor(hWnd);
-      // SendMessageW(g_hWndListView, WM_THEMECHANGED, 0, 0);
     }
   }
 }
@@ -527,137 +426,19 @@ void SetDarkModeForWindow(HWND hWnd,
                           ui::NativeTheme::ThemeSource theme_source) {
   EnsureInitialized();
 
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " theme_source[" << theme_source << ']' << std::endl;
   auto const use_dark = IsDarkPreferred(theme_source);
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__
-            << " use_dark[" << use_dark << ']' << std::endl;
+  AllowDarkModeForApp(use_dark);
+  AllowDarkModeForWindow(hWnd, use_dark);
+  RefreshTitleBarThemeColor(hWnd, use_dark);
 
-  // for (;;) {
-  HWND up = GetParent(hWnd);
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << " hWnd["
-            << hWnd << "] up [" << up << ']' << std::endl;
-
-  // set the titlebar to confirm we have the right window
-  char str[64];
-  snprintf(str, sizeof(str), "%zu", size_t(hWnd));
-  ::SetWindowTextA(hWnd, str);
-
-  // set permissions
-  if (_AllowDarkModeForApp != nullptr) {
-    std::cerr << "AllowDarkModeForApp " << use_dark << std::endl;
-    _AllowDarkModeForApp(use_dark);
-  }
-  if (_AllowDarkModeForWindow != nullptr) {
-    std::cerr << "AllowDarkModeForWindow " << use_dark << std::endl;
-    _AllowDarkModeForWindow(hWnd, use_dark);
-  }
-
-  // set the titlebar to dark
-  // BOOL darkFlag = TRUE;
-  // auto data = WINDOWCOMPOSITIONATTRIBDATA {WCA_USEDARKMODECOLORS, &darkFlag,
-  // sizeof(darkFlag) }; _SetWindowCompositionAttribute(hWnd, &data);
-
-  // tell it to repaint
-  // STYLESTRUCT style_struct = {};
-  // SendMessageW(hWnd, WM_STYLECHANGED, 0,
-  // reinterpret_cast<LPARAM>(&style_struct)); SendNotifyMessageA(hWnd,
-  // WM_STYLECHANGED, 0, 0); PostMessageW(hWnd, WM_STYLECHANGED, 0, 0);
-  // PostMessageW(hWnd, WM_THEMECHANGED, 0, 0);
-  // PostMessageW(hWnd, WM_STYLECHANGED, GWL_STYLE, 0);
-  // SendMessageW(hWnd, WM_THEMECHANGED, 0, 0);
-  // SetWindowPos (hWnd, NULL, 0,0,0,0, SWP_FRAMECHANGED | SWP_DRAWFRAME |
-  // SWP_NOREPOSITION | SWP_NOSIZE | SWP_NOMOVE); SendMessageW(hWnd,
-  // WM_STYLECHANGED, 0, 0); SetWindowPos (hWnd, NULL, 0,0,0,0, SWP_FRAMECHANGED
-  // | SWP_DRAWFRAME | SWP_NOREPOSITION | SWP_NOSIZE | SWP_NOMOVE);
-  // RedrawWindow(hWnd, {}, {}, RDW_INVALIDATE|RDW_FRAME|RDW_NOINTERNALPAINT);
-  // UpdateWindow(hWnd);
-  // SendMessageW(hWnd, WM_THEMECHANGED, 0, 0);
-
-  if (g_buildNumber >= 18875) {
-    BOOL darkFlag = use_dark != 0;
-    auto attr = WINDOWCOMPOSITIONATTRIBDATA{WCA_USEDARKMODECOLORS, &darkFlag,
-                                            sizeof(darkFlag)};
-    _SetWindowCompositionAttribute(hWnd, &attr);
-    //_RefreshImmersiveColorPolicyState();
-    // SetWindowPos (hWnd, NULL, 0,0,0,0, SWP_SHOWWINDOW | SWP_FRAMECHANGED |
-    // SWP_DRAWFRAME | SWP_NOREPOSITION | SWP_NOSIZE | SWP_NOMOVE);
-    //::RedrawWindow(hWnd, nullptr, nullptr, RDW_FRAME | RDW_INVALIDATE |
-    //RDW_ERASE | RDW_INTERNALPAINT | RDW_ALLCHILDREN | RDW_UPDATENOW);
-    // PostMessage(hWnd, WM_DWMNCRENDERINGCHANGED, TRUE, 0);
-    // PostMessage(hWnd, WM_DWMNCRENDERINGCHANGED, FALSE, 0);
-    // PostMessage(hWnd, WM_DWMNCRENDERINGCHANGED, TRUE, 0);
-    SetWindowPos(hWnd, NULL, 0, 0, 0, 0,
-                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
-                     SWP_DRAWFRAME | SWP_FRAMECHANGED);
-  }
-#if 0
-	  else {
-          static constexpr int DWMA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
-          static constexpr int DWMA_USE_IMMERSIVE_DARK_MODE = 20;
-	  int attribute = -1;
-          if (g_buildNumber >= 17763) {
-	    attribute = DWMA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1;
-	  }
-	  if (g_buildNumber >= 18985) {
-            attribute = DWMA_USE_IMMERSIVE_DARK_MODE;
-	  }
-	  if (attribute >= 0) {
-	    BOOL dark = use_dark != 0;
-            _DwmSetWindowAttribute(hWnd, attribute, &dark, sizeof(dark));
-	  }
-#endif
-
-  // SetWindowPos(hWnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
-  // | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-
-#if 0
-	  // walk up the parent tree
-	  if (!up || up == hWnd)
-		  break;
-	  hWnd = up;
-  }
-#endif
-
-#if 0
-  auto* top = ::GetTopWindow(hWnd);
-  std::cerr << "hWnd[" <<  hWnd << "] top[" << top << ']' << std::endl;
-  // hWnd = top;
-
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << " theme_source[" << theme_source << ']' << std::endl;
-  auto const use_dark = IsDarkPreferred(theme_source);
-  std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << " use_dark[" << use_dark << ']' << std::endl;
-
-  if (use_dark)
-  {
-    if (_AllowDarkModeForApp != nullptr)
-      _AllowDarkModeForApp(use_dark);
-    if (_AllowDarkModeForWindow != nullptr)
-      _AllowDarkModeForWindow(hWnd, use_dark);
-
-    SetClassLongPtr(hWnd, GCLP_HBRBACKGROUND, reinterpret_cast<LONG_PTR>(GetStockObject(BLACK_BRUSH)));
-    if (FAILED(::SetWindowTheme(hWnd, L"DarkMode_Explorer", nullptr))) {
-      std::cerr << __FILE__ << ':' << __LINE__ << " failed darkmode" << std::endl;
-      ::SetWindowTheme(hWnd, L"Explorer", nullptr);
-    }
-    BOOL darkFlag = TRUE;
-    std::cerr << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << ' ' << darkFlag << std::endl;
-    auto data = WINDOWCOMPOSITIONATTRIBDATA {WCA_USEDARKMODECOLORS, &darkFlag, sizeof(darkFlag) };
-    _SetWindowCompositionAttribute(hWnd, &data);
-    _RefreshImmersiveColorPolicyState();
-  }
-  else
-  {
-    std::cerr << __FILE__ << ':' << __LINE__ << "  FIXME use_dark false" << std::endl;
-  }
-
-  //AllowDarkModeForWindow(hWnd, use_dark);
-  // RefreshTitleBarThemeColor(hWnd, use_dark);
-  //_RefreshImmersiveColorPolicyState();
-  ::RedrawWindow(hWnd, nullptr, nullptr, RDW_FRAME | RDW_INVALIDATE | RDW_ERASE | RDW_INTERNALPAINT | RDW_ALLCHILDREN | RDW_UPDATENOW);
-  SendMessageW(hWnd, WM_THEMECHANGED, 0, 0);
-#endif
+  // Trigger a window update.
+  // FIXME(ckerr): this is not be enough to trigger titlebar to change
+  // colors iff it's already been shown
+  SetWindowPos(hWnd, NULL, 0, 0, 0, 0,
+               SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+                   SWP_DRAWFRAME | SWP_FRAMECHANGED);
 }
-
 }  // namespace win
+
+}  // namespace electron
 }  // namespace electron
