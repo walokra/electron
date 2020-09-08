@@ -7,8 +7,6 @@
 // #include <climits>
 // #include <cstdint>
 #include <iostream>
-#include <mutex>
-#include <thread>
 
 // Including SDKDDKVer.h defines the highest available Windows platform.
 // If you wish to build your application for a previous Windows platform,
@@ -259,9 +257,9 @@ void FixDarkScrollBar() {
 }
 
 template <typename P>
-bool Symbol(HMODULE h, P& pointer, const char* name) {
+bool Symbol(HMODULE h, P* pointer, const char* name) {
   if (P p = reinterpret_cast<P>(GetProcAddress(h, name))) {
-    pointer = p;
+    *pointer = p;
     return true;
   } else {
     return false;
@@ -278,8 +276,8 @@ bool CheckBuildNumber(DWORD buildNumber) {
 void InitDarkMode() {
   HMODULE hDwmApi = LoadLibrary(L"DWMAPI");
   if (hDwmApi != 0) {
-    Symbol(hDwmApi, _DwmGetWindowAttribute, "DwmGetWindowAttribute");
-    Symbol(hDwmApi, _DwmSetWindowAttribute, "DwmSetWindowAttribute");
+    Symbol(hDwmApi, &_DwmGetWindowAttribute, "DwmGetWindowAttribute");
+    Symbol(hDwmApi, &_DwmSetWindowAttribute, "DwmSetWindowAttribute");
   }
   std::cerr << "_DwmGetWindowAttribute "
             << reinterpret_cast<void*>(_DwmGetWindowAttribute) << std::endl;
@@ -315,7 +313,7 @@ void InitDarkMode() {
           _SetPreferredAppMode =
               reinterpret_cast<fnSetPreferredAppMode>(ord135);
 
-        //_FlushMenuThemes =
+        // _FlushMenuThemes =
         // reinterpret_cast<fnFlushMenuThemes>(GetProcAddress(hUxtheme,
         // MAKEINTRESOURCEA(136)));
         _IsDarkModeAllowedForWindow =
@@ -330,7 +328,7 @@ void InitDarkMode() {
         if (_OpenNcThemeData && _RefreshImmersiveColorPolicyState &&
             _ShouldAppsUseDarkMode && _AllowDarkModeForWindow &&
             (_AllowDarkModeForApp || _SetPreferredAppMode) &&
-            //_FlushMenuThemes &&
+            // _FlushMenuThemes &&
             _IsDarkModeAllowedForWindow) {
           g_darkModeSupported = true;
 
@@ -350,10 +348,12 @@ void InitDarkMode() {
 
 namespace electron {
 
-std::once_flag dark_mode_inited_;
-
 void EnsureInitialized() {
-  std::call_once(dark_mode_inited_, []() { ::InitDarkMode(); });
+  static bool initialized = false;
+  if (!initialized) {
+    initialized = true;
+    ::InitDarkMode();
+  }
 }
 
 bool IsDarkPreferred(ui::NativeTheme::ThemeSource theme_source) {
