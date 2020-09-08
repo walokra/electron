@@ -438,7 +438,7 @@ void SetDarkModeForWindow(HWND hWnd,
                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
                    SWP_DRAWFRAME | SWP_FRAMECHANGED);
 }
+
 }  // namespace win
 
-}  // namespace electron
 }  // namespace electron
