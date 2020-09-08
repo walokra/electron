@@ -132,43 +132,23 @@ using fnRtlGetNtVersionNumbers = void(WINAPI*)(LPDWORD major,
 using fnSetWindowCompositionAttribute =
     BOOL(WINAPI*)(HWND hWnd, WINDOWCOMPOSITIONATTRIBDATA*);
 // 1809 17763
-
-// ordinal 132
-using fnShouldAppsUseDarkMode = bool(WINAPI*)();
-
-// ordinal 133
-using fnAllowDarkModeForWindow = bool(WINAPI*)(HWND hWnd, bool allow);
-
-// ordinal 135, in 1809
-using fnAllowDarkModeForApp = bool(WINAPI*)(bool allow);
-
-// ordinal 136
-using fnFlushMenuThemes = void(WINAPI*)();
-
-// ordinal 104
-using fnRefreshImmersiveColorPolicyState = void(WINAPI*)();
-
-// ordinal 137
-using fnIsDarkModeAllowedForWindow = bool(WINAPI*)(HWND hWnd);
-
-// ordinal 106
+using fnShouldAppsUseDarkMode = bool(WINAPI*)();  // ordinal 132
+using fnAllowDarkModeForWindow = bool(WINAPI*)(HWND hWnd,
+                                               bool allow);  // ordinal 133
+using fnAllowDarkModeForApp =
+    bool(WINAPI*)(bool allow);              // ordinal 135, in 1809
+using fnFlushMenuThemes = void(WINAPI*)();  // ordinal 136
+using fnRefreshImmersiveColorPolicyState = void(WINAPI*)();     // ordinal 104
+using fnIsDarkModeAllowedForWindow = bool(WINAPI*)(HWND hWnd);  // ordinal 137
 using fnGetIsImmersiveColorUsingHighContrast =
-    bool(WINAPI*)(IMMERSIVE_HC_CACHE_MODE mode);
-
-// ordinal 49
-using fnOpenNcThemeData = HTHEME(WINAPI*)(HWND hWnd, LPCWSTR pszClassList);
-
+    bool(WINAPI*)(IMMERSIVE_HC_CACHE_MODE mode);  // ordinal 106
+using fnOpenNcThemeData = HTHEME(WINAPI*)(HWND hWnd,
+                                          LPCWSTR pszClassList);  // ordinal 49
 // 1903 18362
-
-// ordinal 138
-using fnShouldSystemUseDarkMode = bool(WINAPI*)();
-
-// ordinal 135, in 1903
-using fnSetPreferredAppMode =
-    PreferredAppMode(WINAPI*)(PreferredAppMode appMode);
-
-// ordinal 139
-using fnIsDarkModeAllowedForApp = bool(WINAPI*)();
+using fnShouldSystemUseDarkMode = bool(WINAPI*)();  // ordinal 138
+using fnSetPreferredAppMode = PreferredAppMode(WINAPI*)(
+    PreferredAppMode appMode);                      // ordinal 135, in 1903
+using fnIsDarkModeAllowedForApp = bool(WINAPI*)();  // ordinal 139
 
 fnSetWindowCompositionAttribute _SetWindowCompositionAttribute = nullptr;
 fnShouldAppsUseDarkMode _ShouldAppsUseDarkMode = nullptr;
