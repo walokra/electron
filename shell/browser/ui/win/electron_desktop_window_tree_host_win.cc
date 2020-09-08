@@ -2,8 +2,6 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#include <iostream>
-
 #include "shell/browser/ui/win/electron_desktop_window_tree_host_win.h"
 #include "shell/browser/win/dark_mode.h"
 
