@@ -117,6 +117,7 @@ auto_filenames = {
     "docs/api/structures/segmented-control-segment.md",
     "docs/api/structures/service-worker-info.md",
     "docs/api/structures/shared-worker-info.md",
+    "docs/api/structures/sharing-item.md",
     "docs/api/structures/shortcut-details.md",
     "docs/api/structures/size.md",
     "docs/api/structures/task.md",

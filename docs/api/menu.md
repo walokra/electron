@@ -4,7 +4,10 @@
 
 Process: [Main](../glossary.md#main-process)
 
-### `new Menu()`
+### `new Menu([options])`
+
+* `options` Object (optional)
+  * `sharingItem` SharingItem (optional) _macOS_ - Turn the menu into a [share menu][ShareMenu] and specify the item to share.
 
 Creates a new menu.
 
@@ -401,4 +404,5 @@ Menu:
 ```
 
 [AboutInformationPropertyListFiles]: https://developer.apple.com/library/ios/documentation/general/Reference/InfoPlistKeyReference/Articles/AboutInformationPropertyListFiles.html
+[ShareMenu]: https://developer.apple.com/design/human-interface-guidelines/macos/extensions/share-extensions/
 [setMenu]: https://github.com/electron/electron/blob/master/docs/api/browser-window.md#winsetmenumenu-linux-windows
