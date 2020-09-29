@@ -3,6 +3,7 @@ import { ipcRendererInternal } from '@electron/internal/renderer/ipc-renderer-in
 import * as ipcRendererUtils from '@electron/internal/renderer/ipc-renderer-internal-utils';
 
 import { WebViewImpl } from '@electron/internal/renderer/web-view/web-view-impl';
+import { IPC_MESSAGES } from '@electron/internal/common/ipc-messages';
 
 const WEB_VIEW_EVENTS: Record<string, Array<string>> = {
   'load-commit': ['url', 'isMainFrame'],
@@ -66,18 +67,18 @@ const dispatchEvent = function (
 };
 
 export function registerEvents (webView: WebViewImpl, viewInstanceId: number) {
-  ipcRendererInternal.on(`ELECTRON_GUEST_VIEW_INTERNAL_DESTROY_GUEST-${viewInstanceId}`, function () {
+  ipcRendererInternal.on(`${IPC_MESSAGES.GUEST_VIEW_INTERNAL_DESTROY_GUEST}-${viewInstanceId}`, function () {
     webView.guestInstanceId = undefined;
     webView.reset();
     const domEvent = new Event('destroyed');
     webView.dispatchEvent(domEvent);
   });
 
-  ipcRendererInternal.on(`ELECTRON_GUEST_VIEW_INTERNAL_DISPATCH_EVENT-${viewInstanceId}`, function (event, eventName, ...args) {
+  ipcRendererInternal.on(`${IPC_MESSAGES.GUEST_VIEW_INTERNAL_DISPATCH_EVENT}-${viewInstanceId}`, function (event, eventName, ...args) {
     dispatchEvent(webView, eventName, eventName, ...args);
   });
 
-  ipcRendererInternal.on(`ELECTRON_GUEST_VIEW_INTERNAL_IPC_MESSAGE-${viewInstanceId}`, function (event, channel, ...args) {
+  ipcRendererInternal.on(`${IPC_MESSAGES.GUEST_VIEW_INTERNAL_IPC_MESSAGE}-${viewInstanceId}`, function (event, channel, ...args) {
     const domEvent = new Event('ipc-message') as IpcMessageEvent;
     domEvent.channel = channel;
     domEvent.args = args;
@@ -87,13 +88,13 @@ export function registerEvents (webView: WebViewImpl, viewInstanceId: number) {
 }
 
 export function deregisterEvents (viewInstanceId: number) {
-  ipcRendererInternal.removeAllListeners(`ELECTRON_GUEST_VIEW_INTERNAL_DESTROY_GUEST-${viewInstanceId}`);
-  ipcRendererInternal.removeAllListeners(`ELECTRON_GUEST_VIEW_INTERNAL_DISPATCH_EVENT-${viewInstanceId}`);
-  ipcRendererInternal.removeAllListeners(`ELECTRON_GUEST_VIEW_INTERNAL_IPC_MESSAGE-${viewInstanceId}`);
+  ipcRendererInternal.removeAllListeners(`${IPC_MESSAGES.GUEST_VIEW_INTERNAL_DESTROY_GUEST}-${viewInstanceId}`);
+  ipcRendererInternal.removeAllListeners(`${IPC_MESSAGES.GUEST_VIEW_INTERNAL_DISPATCH_EVENT}-${viewInstanceId}`);
+  ipcRendererInternal.removeAllListeners(`${IPC_MESSAGES.GUEST_VIEW_INTERNAL_IPC_MESSAGE}-${viewInstanceId}`);
 }
 
 export function createGuest (params: Record<string, any>): Promise<number> {
-  return ipcRendererInternal.invoke('ELECTRON_GUEST_VIEW_MANAGER_CREATE_GUEST', params);
+  return ipcRendererInternal.invoke(IPC_MESSAGES.GUEST_VIEW_MANAGER_CREATE_GUEST, params);
 }
 
 export function attachGuest (
@@ -103,11 +104,11 @@ export function attachGuest (
   if (embedderFrameId < 0) { // this error should not happen.
     throw new Error('Invalid embedder frame');
   }
-  ipcRendererInternal.invoke('ELECTRON_GUEST_VIEW_MANAGER_ATTACH_GUEST', embedderFrameId, elementInstanceId, guestInstanceId, params);
+  ipcRendererInternal.invoke(IPC_MESSAGES.GUEST_VIEW_MANAGER_ATTACH_GUEST, embedderFrameId, elementInstanceId, guestInstanceId, params);
 }
 
 export function detachGuest (guestInstanceId: number) {
-  return ipcRendererUtils.invokeSync('ELECTRON_GUEST_VIEW_MANAGER_DETACH_GUEST', guestInstanceId);
+  return ipcRendererUtils.invokeSync(IPC_MESSAGES.GUEST_VIEW_MANAGER_DETACH_GUEST, guestInstanceId);
 }
 
 export const guestViewInternalModule = {
