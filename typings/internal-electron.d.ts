@@ -57,11 +57,13 @@ declare namespace Electron {
     _getPreloadPaths(): string[];
     equal(other: WebContents): boolean;
     _initiallyShown: boolean;
+    browserWindowOptions: BrowserWindowConstructorOptions;
   }
 
   interface WebPreferences {
     guestInstanceId?: number;
     openerId?: number;
+    disablePopups?: boolean
   }
 
   interface SerializedError {
@@ -169,7 +171,7 @@ declare namespace Electron {
   }
 
   class View {}
-  
+
   // Experimental views API
   class BaseWindow {
     constructor(args: {show: boolean})
