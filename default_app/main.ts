@@ -264,7 +264,14 @@ A path to an Electron app may be specified. It must be one of the following:
   - Folder containing a package.json file.
   - Folder containing an index.js file.
   - .html/.htm file.
-  - http://, https://, or file:// URL.
+  - chrome://, http://, https://, or file:// URL.
+
+When using a path that contains a package.json file, Electron will:
+  - Set the appVersion
+  - Set the appName
+  - Set the userData directory path
+  - Set the userCache directory path
+  - Set the app path
 
 Options:
   -i, --interactive     Open a REPL to the main process.
